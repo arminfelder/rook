@@ -36,6 +36,7 @@ const (
 	// MDS uses approximately 125% of the value of mds_cache_memory_limit in RAM.
 	// Eventually we will tune this automatically: http://tracker.ceph.com/issues/36663
 	mdsCacheMemoryLimitFactor = 0.5
+	podIPEnvVar               = "ROOK_POD_IP"
 )
 
 func (c *Cluster) makeDeployment(mdsConfig *mdsConfig) (*apps.Deployment, error) {
@@ -139,6 +140,12 @@ func (c *Cluster) makeMdsDaemonContainer(mdsConfig *mdsConfig) v1.Container {
 		Resources:       c.fs.Spec.MetadataServer.Resources,
 		SecurityContext: controller.PodSecurityContext(),
 		LivenessProbe:   controller.GenerateLivenessProbeExecDaemon(config.MdsType, mdsConfig.DaemonID),
+	}
+	if !c.clusterSpec.Network.IsHost() {
+		// sets the pod IP explicitly, to prevent cases where the IP ios not correctly dedected by ceph
+		container.Args = append(container.Args,
+			config.NewFlag("public-addr", controller.ContainerEnvVarReference(podIPEnvVar)))
+		container.Env = append(container.Env, k8sutil.PodIPEnvVar(podIPEnvVar))
 	}
 
 	return container
